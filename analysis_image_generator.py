@@ -306,10 +306,50 @@ def gerar_imagem_analise(resultado: ResultadoAnalise) -> bytes:
 </html>"""
 
     hti = Html2Image(size=(800, 2200))
-    with tempfile.TemporaryDirectory() as tmpdir:
-        hti.output_path = tmpdir
-        filename = "analise_criteriosa.png"
-        hti.screenshot(html_str=html_content, save_as=filename)
-        filepath = os.path.join(tmpdir, filename)
-        with open(filepath, "rb") as f:
-            return f.read()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hti.output_path = tmpdir
+            filename = "analise_criteriosa.png"
+            hti.screenshot(html_str=html_content, save_as=filename)
+            filepath = os.path.join(tmpdir, filename)
+            with open(filepath, "rb") as f:
+                return f.read()
+
+    except Exception:
+        # Fallback simples: gerar uma imagem textual com Pillow para não quebrar na nuvem
+        import re
+        from io import BytesIO
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception:
+            raise
+
+        def _strip_emoji(text: str) -> str:
+            return "".join(ch for ch in text if ord(ch) <= 0xFFFF)
+
+        # Extrai texto bruto do HTML e compacta espaços
+        text = re.sub(r"<[^>]+>", "", html_content)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # Layout básico
+        width = 800
+        font = ImageFont.load_default()
+        max_chars_per_line = 90
+        lines = [ _strip_emoji(text[i:i+max_chars_per_line]) for i in range(0, len(text), max_chars_per_line) ]
+        line_height = font.getsize("A")[1] + 4
+        height = max(600, line_height * len(lines) + 40)
+
+        img = Image.new("RGB", (width, height), (15, 23, 42))
+        draw = ImageDraw.Draw(img)
+        x, y = 20, 20
+        fill = (225, 229, 241)
+        for line in lines:
+            if not line:
+                y += line_height
+                continue
+            draw.text((x, y), line, font=font, fill=fill)
+            y += line_height
+
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()

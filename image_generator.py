@@ -241,25 +241,62 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
     </html>
     """
 
-    # Renderiza com html2image
-    hti = Html2Image(size=(800, 1000))  # Definindo uma altura razoável, ela pode ser cortada ou sobrar fundo, mas o HTML é limpo
-    
-    # html2image no Windows salva no diretório atual. Vamos usar o tempfile para não sujar o diretório
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        hti.output_path = tmpdirname
-        filename = "relatorio.png"
-        
-        # Gera o PNG a partir da string HTML
-        hti.screenshot(html_str=html_content, save_as=filename)
-        
-        # Lê os bytes gerados
-        filepath = os.path.join(tmpdirname, filename)
-        
-        # Opcional: Para evitar muito espaço em branco sobrando embaixo, poderíamos recortar com Pillow depois, 
-        # mas o html2image tem a opção de fazer render dinâmico se usarmos element (um pouco complexo). 
-        # O tamanho 800x1000 deve servir bem para a maioria dos casos.
-        
-        with open(filepath, "rb") as f:
-            image_bytes = f.read()
+    # Renderiza com html2image. Se estiver rodando em ambiente sem Chrome (ex: Streamlit Cloud),
+    # o html2image/pyppeteer pode falhar; neste caso caímos em um fallback simples usando Pillow
+    # para gerar uma imagem textual (garante que a app não quebre).
+    hti = Html2Image(size=(800, 1000))
 
-    return image_bytes
+    try:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            hti.output_path = tmpdirname
+            filename = "relatorio.png"
+            # Gera o PNG a partir da string HTML
+            hti.screenshot(html_str=html_content, save_as=filename)
+            # Lê os bytes gerados
+            filepath = os.path.join(tmpdirname, filename)
+            with open(filepath, "rb") as f:
+                return f.read()
+
+    except Exception as e:
+        # Fallback: gerar imagem simples com texto (remove tags HTML e emojis)
+        import re
+        from io import BytesIO
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception:
+            # Se Pillow não estiver disponível por algum motivo, re-raise a exceção original
+            raise
+
+        def _strip_emoji(text: str) -> str:
+            return "".join(ch for ch in text if ord(ch) <= 0xFFFF)
+
+        # Remove tags HTML e compacta espaços
+        text = re.sub(r"<[^>]+>", "", html_content)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # Cria imagem básica
+        width = 800
+        font = ImageFont.load_default()
+        # calcula altura aproximada
+        lines = []
+        max_chars_per_line = 90
+        for i in range(0, len(text), max_chars_per_line):
+            lines.append(_strip_emoji(text[i:i+max_chars_per_line]))
+
+        line_height = font.getsize("A")[1] + 4
+        height = max(600, line_height * len(lines) + 40)
+
+        img = Image.new("RGB", (width, height), (248, 250, 252))
+        draw = ImageDraw.Draw(img)
+        x, y = 20, 20
+        fill = (30, 41, 59)
+        for line in lines:
+            if not line:
+                y += line_height
+                continue
+            draw.text((x, y), line, font=font, fill=fill)
+            y += line_height
+
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()

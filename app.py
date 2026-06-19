@@ -449,6 +449,16 @@ def _gerar_pdf_analise(resultado, lista_insights: list[dict]) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    # Ao gerar PDF com as fontes internas (p.ex. Helvetica), emojis podem causar erro
+    # por não serem suportados pela fonte. Para uma correção rápida, removemos
+    # caracteres emoji do texto antes de escrevê-lo no PDF.
+    def _strip_emoji(text: str) -> str:
+        if not isinstance(text, str):
+            return text
+        # Remove caracteres fora do Plano Multilingue Básico (BMP), que incluem
+        # a maioria dos emojis (ord > 0xFFFF).
+        return "".join(ch for ch in text if ord(ch) <= 0xFFFF)
+
     pdf.set_font("Helvetica", "B", 18)
 
     nome_gestor = resultado.gestor_selecionado or "Geral"
@@ -474,8 +484,8 @@ def _gerar_pdf_analise(resultado, lista_insights: list[dict]) -> bytes:
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*cor)
         pdf.cell(6)  # indent
-        # Remove tags HTML básicas para o PDF
-        texto_limpo = texto.replace("<b>", "").replace("</b>", "")
+        # Remove tags HTML básicas para o PDF e remove emojis
+        texto_limpo = _strip_emoji(texto.replace("<b>", "").replace("</b>", ""))
         pdf.multi_cell(0, 6, f"  {texto_limpo}", new_x="LMARGIN", new_y="NEXT")
 
     # ---- Pontos Positivos ----
@@ -563,11 +573,11 @@ def _gerar_pdf_analise(resultado, lista_insights: list[dict]) -> bytes:
         cor = tipo_cor.get(ins["tipo"], (51, 65, 85))
         pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(*cor)
-        pdf.multi_cell(0, 6, f"{ins['icone']} {ins['titulo']}", new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 6, _strip_emoji(f"{ins['icone']} {ins['titulo']}"), new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(100, 116, 139)
         pdf.cell(6)
-        pdf.multi_cell(0, 5, f"   {ins['detalhe']}", new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 5, _strip_emoji(f"   {ins['detalhe']}"), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
     # Rodapé
