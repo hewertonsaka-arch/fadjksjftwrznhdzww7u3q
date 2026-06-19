@@ -275,168 +275,172 @@ def main():
     uploaded_file = st.file_uploader("Arraste e solte sua planilha (.xlsx, .csv)", type=["xlsx", "csv"])
 
     if uploaded_file is not None:
+        # Apenas o carregamento do arquivo fica em try/except — erros posteriores
+        # (geração de imagens/PDF/etc.) devem ter seus próprios tratamentos e
+        # não devem ser exibidos como "Erro ao carregar a planilha".
         try:
             df = loader.load(uploaded_file)
-            st.success("✔ Arquivo carregado com sucesso!")
-
-            with st.expander("📋 Dados Carregados (Pré-visualização)"):
-                st.dataframe(df, use_container_width=True)
-
-            # 2. Filtros compartilhados
-            col1, col2 = st.columns(2)
-
-            with col1:
-                gestores_disponiveis = sorted(df["gestor"].dropna().unique().tolist())
-                opcoes_gestor = ["Todos"] + gestores_disponiveis
-                gestor_selecionado = st.selectbox("Selecione o Gestor:", opcoes_gestor)
-
-            with col2:
-                datas = st.date_input(
-                    "Período do relatório (Início e Fim):",
-                    value=(),
-                    format="DD/MM/YYYY"
-                )
-
-                periodo = ""
-                if isinstance(datas, (tuple, list)):
-                    if len(datas) == 2:
-                        inicio, fim = datas
-                        if inicio.month == fim.month and inicio.year == fim.year:
-                            periodo = f"{inicio.day:02d} a {fim.day:02d}/{fim.month:02d}"
-                        else:
-                            periodo = f"{inicio.day:02d}/{inicio.month:02d} a {fim.day:02d}/{fim.month:02d}"
-                    elif len(datas) == 1:
-                        periodo = f"{datas[0].day:02d}/{datas[0].month:02d}"
-
-            gestor_filtro = None if gestor_selecionado == "Todos" else gestor_selecionado
-
-            # ----------------------------------------------------------------
-            # 3. ABAS
-            # ----------------------------------------------------------------
-            tab1, tab2 = st.tabs(["📤 Resumo", "🔍 Análise"])
-
-            # ================================================================
-            # ABA 1 — Resumo para Compartilhamento (comportamento original)
-            # ================================================================
-            with tab1:
-                if st.button("Gerar Resumo", type="primary", key="btn_resumo"):
-                    if not periodo:
-                        st.warning("Por favor, preencha o período do relatório.")
-                    else:
-                        with st.spinner("Analisando dados..."):
-                            try:
-                                resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
-                                resumo = formatter.gerar_resumo(resultado)
-
-                                st.subheader("✅ Resumo Gerado")
-                                st.code(resumo, language="markdown")
-
-                                st.markdown("---")
-                                st.markdown("### Exportar Resumo")
-
-                                col_btn1, col_btn2 = st.columns(2)
-
-                                with col_btn1:
-                                    st.download_button(
-                                        label="📄 Baixar como .txt",
-                                        data=resumo,
-                                        file_name="resumo_visitas.txt",
-                                        mime="text/plain",
-                                    )
-
-                                with col_btn2:
-                                    with st.spinner("Gerando Imagem Premium..."):
-                                        try:
-                                            img_bytes = image_generator.gerar_imagem_html(resultado)
-                                        except Exception:
-                                            st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
-                                            img_bytes = None
-                                    if img_bytes:
-                                        st.download_button(
-                                            label="🖼️ Baixar como Imagem (.png)",
-                                            data=img_bytes,
-                                            file_name="resumo_visitas.png",
-                                            mime="image/png",
-                                        )
-
-                            except ValueError as e:
-                                st.error(f"Erro na análise: {e}")
-
-            # ================================================================
-            # ABA 2 — Análise Criteriosa
-            # ================================================================
-            with tab2:
-                if st.button("🔍 Gerar Análise Criteriosa", type="primary", key="btn_analise"):
-                    if not periodo:
-                        st.warning("Por favor, preencha o período do relatório.")
-                    else:
-                        with st.spinner("Realizando análise criteriosa..."):
-                            try:
-                                resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
-                            except ValueError as e:
-                                st.error(f"Erro na análise: {e}")
-                                st.stop()
-
-                        nome_gestor = resultado.gestor_selecionado or "Geral"
-                        st.subheader(f"🔍 Análise Criteriosa — {nome_gestor}")
-                        st.caption(f"Período: {resultado.periodo} · {resultado.total_vendedores} vendedor(es) analisado(s)")
-
-                        # ---- Pontos Positivos ----
-                        st.markdown('<p class="section-header">🟢 Pontos Positivos</p>', unsafe_allow_html=True)
-                        _render_pontos_positivos(resultado)
-
-                        # ---- Pontos Negativos ----
-                        st.markdown("---")
-                        st.markdown('<p class="section-header">🔴 Pontos de Atenção / Negativos</p>', unsafe_allow_html=True)
-                        _render_pontos_negativos(resultado)
-
-                        # ---- Gráficos de Ranking ----
-                        st.markdown("---")
-                        _render_ranking(resultado)
-
-                        # ---- Insights para Decisão ----
-                        st.markdown("---")
-                        st.markdown('<p class="section-header">💡 Insights para Tomada de Decisão</p>', unsafe_allow_html=True)
-                        lista_insights = insights_module.gerar_insights(resultado)
-                        for ins in lista_insights:
-                            st.markdown(_insight_card(ins), unsafe_allow_html=True)
-
-                        # ---- Exportação ----
-                        st.markdown("---")
-                        st.markdown("### 📥 Exportar Análise")
-
-                        col_exp1, col_exp2 = st.columns(2)
-
-                        with col_exp1:
-                            with st.spinner("Gerando imagem da análise..."):
-                                try:
-                                    img_analise = analysis_image_generator.gerar_imagem_analise(resultado)
-                                except Exception:
-                                    st.warning("Não foi possível gerar a imagem da análise neste ambiente. Tente baixar o PDF ou o resumo em texto.")
-                                    img_analise = None
-                            if img_analise:
-                                st.download_button(
-                                    label="🖼️ Baixar Análise como Imagem (.png)",
-                                    data=img_analise,
-                                    file_name="analise_criteriosa.png",
-                                    mime="image/png",
-                                    key="dl_analise_img",
-                                )
-
-                        with col_exp2:
-                            # PDF via fpdf2 — gera PDF simples com o conteúdo da análise
-                            with st.spinner("Gerando PDF..."):
-                                pdf_bytes = _gerar_pdf_analise(resultado, lista_insights)
-                            st.download_button(
-                                label="📄 Baixar Análise como PDF",
-                                data=pdf_bytes,
-                                file_name="analise_criteriosa.pdf",
-                                mime="application/pdf",
-                                key="dl_analise_pdf",
-                            )
-
         except Exception as e:
             st.error(f"Erro ao carregar a planilha: {e}")
+            st.stop()
+
+        st.success("✔ Arquivo carregado com sucesso!")
+
+        with st.expander("📋 Dados Carregados (Pré-visualização)"):
+            st.dataframe(df, use_container_width=True)
+
+        # 2. Filtros compartilhados
+        col1, col2 = st.columns(2)
+
+        with col1:
+            gestores_disponiveis = sorted(df["gestor"].dropna().unique().tolist())
+            opcoes_gestor = ["Todos"] + gestores_disponiveis
+            gestor_selecionado = st.selectbox("Selecione o Gestor:", opcoes_gestor)
+
+        with col2:
+            datas = st.date_input(
+                "Período do relatório (Início e Fim):",
+                value=(),
+                format="DD/MM/YYYY"
+            )
+
+            periodo = ""
+            if isinstance(datas, (tuple, list)):
+                if len(datas) == 2:
+                    inicio, fim = datas
+                    if inicio.month == fim.month and inicio.year == fim.year:
+                        periodo = f"{inicio.day:02d} a {fim.day:02d}/{fim.month:02d}"
+                    else:
+                        periodo = f"{inicio.day:02d}/{inicio.month:02d} a {fim.day:02d}/{fim.month:02d}"
+                elif len(datas) == 1:
+                    periodo = f"{datas[0].day:02d}/{datas[0].month:02d}"
+
+        gestor_filtro = None if gestor_selecionado == "Todos" else gestor_selecionado
+
+        # ----------------------------------------------------------------
+        # 3. ABAS
+        # ----------------------------------------------------------------
+        tab1, tab2 = st.tabs(["📤 Resumo", "🔍 Análise"])
+
+        # ================================================================
+        # ABA 1 — Resumo para Compartilhamento (comportamento original)
+        # ================================================================
+        with tab1:
+            if st.button("Gerar Resumo", type="primary", key="btn_resumo"):
+                if not periodo:
+                    st.warning("Por favor, preencha o período do relatório.")
+                else:
+                    with st.spinner("Analisando dados..."):
+                        try:
+                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                            resumo = formatter.gerar_resumo(resultado)
+
+                            st.subheader("✅ Resumo Gerado")
+                            st.code(resumo, language="markdown")
+
+                            st.markdown("---")
+                            st.markdown("### Exportar Resumo")
+
+                            col_btn1, col_btn2 = st.columns(2)
+
+                            with col_btn1:
+                                st.download_button(
+                                    label="📄 Baixar como .txt",
+                                    data=resumo,
+                                    file_name="resumo_visitas.txt",
+                                    mime="text/plain",
+                                )
+
+                            with col_btn2:
+                                with st.spinner("Gerando Imagem Premium..."):
+                                    try:
+                                        img_bytes = image_generator.gerar_imagem_html(resultado)
+                                    except Exception:
+                                        st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
+                                        img_bytes = None
+                                if img_bytes:
+                                    st.download_button(
+                                        label="🖼️ Baixar como Imagem (.png)",
+                                        data=img_bytes,
+                                        file_name="resumo_visitas.png",
+                                        mime="image/png",
+                                    )
+
+                        except ValueError as e:
+                            st.error(f"Erro na análise: {e}")
+
+        # ================================================================
+        # ABA 2 — Análise Criteriosa
+        # ================================================================
+        with tab2:
+            if st.button("🔍 Gerar Análise Criteriosa", type="primary", key="btn_analise"):
+                if not periodo:
+                    st.warning("Por favor, preencha o período do relatório.")
+                else:
+                    with st.spinner("Realizando análise criteriosa..."):
+                        try:
+                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                        except ValueError as e:
+                            st.error(f"Erro na análise: {e}")
+                            st.stop()
+
+                    nome_gestor = resultado.gestor_selecionado or "Geral"
+                    st.subheader(f"🔍 Análise Criteriosa — {nome_gestor}")
+                    st.caption(f"Período: {resultado.periodo} · {resultado.total_vendedores} vendedor(es) analisado(s)")
+
+                    # ---- Pontos Positivos ----
+                    st.markdown('<p class="section-header">🟢 Pontos Positivos</p>', unsafe_allow_html=True)
+                    _render_pontos_positivos(resultado)
+
+                    # ---- Pontos Negativos ----
+                    st.markdown("---")
+                    st.markdown('<p class="section-header">🔴 Pontos de Atenção / Negativos</p>', unsafe_allow_html=True)
+                    _render_pontos_negativos(resultado)
+
+                    # ---- Gráficos de Ranking ----
+                    st.markdown("---")
+                    _render_ranking(resultado)
+
+                    # ---- Insights para Decisão ----
+                    st.markdown("---")
+                    st.markdown('<p class="section-header">💡 Insights para Tomada de Decisão</p>', unsafe_allow_html=True)
+                    lista_insights = insights_module.gerar_insights(resultado)
+                    for ins in lista_insights:
+                        st.markdown(_insight_card(ins), unsafe_allow_html=True)
+
+                    # ---- Exportação ----
+                    st.markdown("---")
+                    st.markdown("### 📥 Exportar Análise")
+
+                    col_exp1, col_exp2 = st.columns(2)
+
+                    with col_exp1:
+                        with st.spinner("Gerando imagem da análise..."):
+                            try:
+                                img_analise = analysis_image_generator.gerar_imagem_analise(resultado)
+                            except Exception:
+                                st.warning("Não foi possível gerar a imagem da análise neste ambiente. Tente baixar o PDF ou o resumo em texto.")
+                                img_analise = None
+                        if img_analise:
+                            st.download_button(
+                                label="🖼️ Baixar Análise como Imagem (.png)",
+                                data=img_analise,
+                                file_name="analise_criteriosa.png",
+                                mime="image/png",
+                                key="dl_analise_img",
+                            )
+
+                    with col_exp2:
+                        # PDF via fpdf2 — gera PDF simples com o conteúdo da análise
+                        with st.spinner("Gerando PDF..."):
+                            pdf_bytes = _gerar_pdf_analise(resultado, lista_insights)
+                        st.download_button(
+                            label="📄 Baixar Análise como PDF",
+                            data=pdf_bytes,
+                            file_name="analise_criteriosa.pdf",
+                            mime="application/pdf",
+                            key="dl_analise_pdf",
+                        )
 
 
 # ---------------------------------------------------------------------------
