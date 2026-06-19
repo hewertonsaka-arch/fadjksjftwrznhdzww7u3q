@@ -346,13 +346,18 @@ def main():
 
                                 with col_btn2:
                                     with st.spinner("Gerando Imagem Premium..."):
-                                        img_bytes = image_generator.gerar_imagem_html(resultado)
-                                    st.download_button(
-                                        label="🖼️ Baixar como Imagem (.png)",
-                                        data=img_bytes,
-                                        file_name="resumo_visitas.png",
-                                        mime="image/png",
-                                    )
+                                        try:
+                                            img_bytes = image_generator.gerar_imagem_html(resultado)
+                                        except Exception:
+                                            st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
+                                            img_bytes = None
+                                    if img_bytes:
+                                        st.download_button(
+                                            label="🖼️ Baixar como Imagem (.png)",
+                                            data=img_bytes,
+                                            file_name="resumo_visitas.png",
+                                            mime="image/png",
+                                        )
 
                             except ValueError as e:
                                 st.error(f"Erro na análise: {e}")
@@ -404,14 +409,19 @@ def main():
 
                         with col_exp1:
                             with st.spinner("Gerando imagem da análise..."):
-                                img_analise = analysis_image_generator.gerar_imagem_analise(resultado)
-                            st.download_button(
-                                label="🖼️ Baixar Análise como Imagem (.png)",
-                                data=img_analise,
-                                file_name="analise_criteriosa.png",
-                                mime="image/png",
-                                key="dl_analise_img",
-                            )
+                                try:
+                                    img_analise = analysis_image_generator.gerar_imagem_analise(resultado)
+                                except Exception:
+                                    st.warning("Não foi possível gerar a imagem da análise neste ambiente. Tente baixar o PDF ou o resumo em texto.")
+                                    img_analise = None
+                            if img_analise:
+                                st.download_button(
+                                    label="🖼️ Baixar Análise como Imagem (.png)",
+                                    data=img_analise,
+                                    file_name="analise_criteriosa.png",
+                                    mime="image/png",
+                                    key="dl_analise_img",
+                                )
 
                         with col_exp2:
                             # PDF via fpdf2 — gera PDF simples com o conteúdo da análise

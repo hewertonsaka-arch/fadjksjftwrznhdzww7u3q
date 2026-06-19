@@ -1,6 +1,5 @@
 import os
 import tempfile
-from html2image import Html2Image
 from analyzer import ResultadoAnalise
 from loader import minutes_to_time_str
 
@@ -244,10 +243,11 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
     # Renderiza com html2image. Se estiver rodando em ambiente sem Chrome (ex: Streamlit Cloud),
     # o html2image/pyppeteer pode falhar; neste caso caímos em um fallback simples usando Pillow
     # para gerar uma imagem textual (garante que a app não quebre).
-    hti = Html2Image(size=(800, 1000))
-
     try:
+        # Instanciação de Html2Image pode lançar se não houver um executável do Chrome/Chromium
+        from html2image import Html2Image
         with tempfile.TemporaryDirectory() as tmpdirname:
+            hti = Html2Image(size=(800, 1000))
             hti.output_path = tmpdirname
             filename = "relatorio.png"
             # Gera o PNG a partir da string HTML

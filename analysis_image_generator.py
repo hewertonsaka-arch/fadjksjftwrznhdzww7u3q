@@ -6,8 +6,6 @@ from __future__ import annotations
 import os
 import tempfile
 
-from html2image import Html2Image
-
 from analyzer import ResultadoAnalise
 from insights import gerar_insights
 from loader import minutes_to_time_str
@@ -305,9 +303,11 @@ def gerar_imagem_analise(resultado: ResultadoAnalise) -> bytes:
 </body>
 </html>"""
 
-    hti = Html2Image(size=(800, 2200))
     try:
+        # A criação de Html2Image pode falhar em ambientes sem Chrome/Chromium
+        from html2image import Html2Image
         with tempfile.TemporaryDirectory() as tmpdir:
+            hti = Html2Image(size=(800, 2200))
             hti.output_path = tmpdir
             filename = "analise_criteriosa.png"
             hti.screenshot(html_str=html_content, save_as=filename)
