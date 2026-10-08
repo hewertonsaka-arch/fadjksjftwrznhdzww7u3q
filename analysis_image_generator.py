@@ -9,6 +9,7 @@ import tempfile
 from analyzer import ResultadoAnalise
 from insights import gerar_insights
 from loader import minutes_to_time_str
+from image_fallback import gerar_imagem_fallback
 
 
 def _fmt_aderencia(v: float) -> str:
@@ -317,6 +318,37 @@ def gerar_imagem_analise(resultado: ResultadoAnalise) -> bytes:
 
     except Exception:
         # Fallback simples: gerar uma imagem textual com Pillow para não quebrar na nuvem
+        positivos: list[str] = []
+        negativos: list[str] = []
+        positivos.extend(f"{vm.nome} — {_fmt_aderencia(vm.valor)} acima da média de aderência" for vm in resultado.acima_aderencia)
+        positivos.extend(f"{vm.nome} — check-in {vm.valor}" for vm in resultado.abaixo_checkin)
+        positivos.extend(f"{vm.nome} — check-out {vm.valor}" for vm in resultado.acima_checkout)
+        positivos.extend(f"{vm.nome} — {_fmt_tempo(vm.valor)} no cliente" for vm in resultado.acima_tempo)
+        positivos.extend(f"{nome} — nenhuma visita não realizada" for nome in resultado.sem_faltas)
+
+        negativos.extend(f"{vm.nome} — {_fmt_aderencia(vm.valor)} de aderência" for vm in resultado.abaixo_aderencia)
+        negativos.extend(f"{vm.nome} — check-in {vm.valor}" for vm in resultado.acima_checkin)
+        negativos.extend(f"{vm.nome} — check-out {vm.valor}" for vm in resultado.abaixo_checkout)
+        negativos.extend(f"{vm.nome} — {_fmt_tempo(vm.valor)} no cliente" for vm in resultado.abaixo_tempo)
+        negativos.extend(f"{vm.nome} — {vm.valor} visita(s) não realizada(s)" for vm in resultado.nao_realizadas)
+        negativos.extend(f"{nome} — visitas somente remotas" for nome in resultado.somente_remota)
+
+        secoes: list[tuple[str, list[str]]] = [
+            ("Pontos positivos", positivos),
+            ("Pontos de atenção", negativos),
+            ("Ranking de aderência à rota", [
+                f"{posicao}. {v.nome} — {int(v.aderencia)}%"
+                for posicao, v in enumerate(resultado.ranking_aderencia, 1)
+            ]),
+            ("Insights", [f"{ins['titulo']}: {ins['detalhe']}" for ins in insights]),
+        ]
+        return gerar_imagem_fallback(
+            f"Análise criteriosa — {nome_gestor}",
+            f"{resultado.periodo} | {resultado.total_vendedores} vendedores analisados",
+            secoes,
+            tema_escuro=True,
+        )
+
         import re
         from io import BytesIO
         try:

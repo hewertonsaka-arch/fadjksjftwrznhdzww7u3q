@@ -2,6 +2,7 @@ import os
 import tempfile
 from analyzer import ResultadoAnalise
 from loader import minutes_to_time_str
+from image_fallback import gerar_imagem_fallback
 
 def _fmt_aderencia(v: float) -> str:
     return f"{int(v)}%"
@@ -191,6 +192,28 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
                 return f.read()
 
     except Exception as e:
+        secoes: list[tuple[str, list[str]]] = []
+        if resultado.acima_checkin:
+            media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
+            secoes.append((
+                f"Check-in acima da média do time [{media_ci_str}]",
+                [f"{vm.nome} — {vm.valor}" for vm in resultado.acima_checkin],
+            ))
+        if resultado.abaixo_checkout:
+            media_co_str = minutes_to_time_str(resultado.media_checkout_min)
+            secoes.append((
+                f"Check-out abaixo da média do time [{media_co_str}]",
+                [f"{vm.nome} — {vm.valor}" for vm in resultado.abaixo_checkout],
+            ))
+        if resultado.nao_realizadas:
+            secoes.append((
+                "Visitas não realizadas",
+                [f"{vm.nome} — {vm.valor}" for vm in resultado.nao_realizadas],
+            ))
+        return gerar_imagem_fallback(
+            f"Resumo de Visitas {nome_gestor}", resultado.periodo, secoes
+        )
+
         # Fallback: gerar imagem simples com texto (remove tags HTML e emojis)
         import re
         from io import BytesIO
