@@ -295,7 +295,7 @@ def main():
         with col1:
             gestores_disponiveis = sorted(df["gestor"].dropna().unique().tolist())
             opcoes_gestor = ["Todos"] + gestores_disponiveis
-            gestor_selecionado = st.selectbox("Selecione o Gestor:", opcoes_gestor)
+            gestor_selecionado = st.selectbox("Selecione o Coordenador:", opcoes_gestor)
 
         with col2:
             datas = st.date_input(

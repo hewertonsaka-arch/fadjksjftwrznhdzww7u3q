@@ -42,10 +42,16 @@ def _parse_time(value: object) -> time | None:
         return value.time()             # type: ignore[union-attr]
     s = str(value).strip()
     # Aceita HH:MM ou HH:MM:SS
-    m = re.match(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
     if m:
         h, mi, se = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
-        return time(h, mi, se)
+        try:
+            return time(h, mi, se)
+        except ValueError:
+            # Valores como "24:00" ou "09:99" têm formato válido, mas
+            # não representam um horário. Tratamos como dado ausente para
+            # que a planilha continue sendo analisada sem encerrar a aplicação.
+            return None
     return None
 
 
@@ -61,6 +67,18 @@ def _minutes_to_time(minutes: float) -> str:
     h = int(minutes) // 60
     m = int(minutes) % 60
     return f"{h:02d}:{m:02d}"
+
+
+def formatar_nome_vendedor(nome: object) -> str:
+    """Retorna apenas o primeiro nome e o último sobrenome."""
+    if pd.isna(nome):
+        return ""
+    partes = str(nome).strip().split()
+    if not partes:
+        return ""
+    if len(partes) == 1:
+        return partes[0]
+    return f"{partes[0]} {partes[-1]}"
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +141,7 @@ def load(filepath: str | Path | object, sheet: int | str = 0) -> pd.DataFrame:
     df = raw[list(COLUNAS.values())].rename(columns=inv).copy()
 
     # --- Limpeza de strings ---
-    df["vendedor"] = df["vendedor"].str.strip()
+    df["vendedor"] = df["vendedor"].apply(formatar_nome_vendedor)
     df["gestor"] = df["gestor"].str.strip()
 
     # --- Converte numéricos inteiros ---

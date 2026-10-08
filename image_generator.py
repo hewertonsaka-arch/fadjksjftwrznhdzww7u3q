@@ -117,35 +117,13 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
         </div>
     """)
 
-    # 1. Aderência à rota
-    if resultado.abaixo_aderencia:
-        media_str = _fmt_aderencia(resultado.media_aderencia)
-        html_parts.append(f"""
-        <div class="section">
-            <div class="section-title text-red">
-                <span class="icon">🔻</span> Aderência à rota abaixo da média da equipe ({media_str}):
-            </div>
-            <ul>
-        """)
-        for vm in resultado.abaixo_aderencia:
-            html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{_fmt_aderencia(vm.valor)}</span></li>')
-        html_parts.append("</ul></div>")
-    else:
-        html_parts.append(f"""
-        <div class="section">
-            <div class="section-title text-green">
-                <span class="icon">✅</span> Todos os vendedores estão acima ou na média de aderência à rota ({_fmt_aderencia(resultado.media_aderencia)}).
-            </div>
-        </div>
-        """)
-
-    # 2. Check-in acima da média
+    # 1. Check-in acima da média
     if resultado.acima_checkin:
         media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
         html_parts.append(f"""
         <div class="section">
             <div class="section-title text-blue">
-                <span class="icon">📤</span> Check-in acima da média do time ({media_ci_str}):
+                <span class="icon">📤</span> Check-in acima da média do time [{media_ci_str}]:
             </div>
             <ul>
         """)
@@ -153,13 +131,13 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
             html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
         html_parts.append("</ul></div>")
 
-    # 3. Check-out abaixo da média
+    # 2. Check-out abaixo da média
     if resultado.abaixo_checkout:
         media_co_str = minutes_to_time_str(resultado.media_checkout_min)
         html_parts.append(f"""
         <div class="section">
             <div class="section-title text-orange">
-                <span class="icon">📥</span> Check-out abaixo da média do time ({media_co_str}):
+                <span class="icon">📥</span> Check-out abaixo da média do time [{media_co_str}]:
             </div>
             <ul>
         """)
@@ -167,20 +145,7 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
             html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
         html_parts.append("</ul></div>")
 
-    # 4. Tempo no cliente
-    if resultado.abaixo_tempo:
-        html_parts.append("""
-        <div class="section">
-            <div class="section-title text-purple">
-                <span class="icon">⏳</span> Tempo médio de permanência no cliente abaixo do esperado:
-            </div>
-            <ul>
-        """)
-        for vm in resultado.abaixo_tempo:
-            html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{_fmt_tempo(vm.valor)}</span></li>')
-        html_parts.append("</ul></div>")
-
-    # 5. Visitas não realizadas
+    # 3. Visitas não realizadas
     if resultado.nao_realizadas:
         html_parts.append("""
         <div class="section">
@@ -193,39 +158,7 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
             html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
         html_parts.append("</ul></div>")
 
-    # 6. Somente remotas
-    if resultado.somente_remota:
-        html_parts.append("""
-        <div class="section">
-            <div class="section-title text-orange">
-                <span class="icon">⚠️</span> Ponto de atenção — realizaram visitas apenas de forma remota:
-            </div>
-            <ul>
-        """)
-        for nome in resultado.somente_remota:
-            html_parts.append(f'<li><span class="name">{nome}</span></li>')
-        html_parts.append("</ul></div>")
-
-    # 7. Clientes atendidos remotamente acima da média
-    if resultado.acima_visitas_rem:
-        html_parts.append(f"""
-        <div class="section">
-            <div class="section-title text-teal">
-                <span class="icon">📞</span> Clientes atendidos remotamente acima da média do time ({resultado.media_visitas_rem}):
-            </div>
-            <ul>
-        """)
-        for vr in resultado.acima_visitas_rem:
-            html_parts.append(f'<li><span class="name">{vr.nome}</span> – <span class="value">{vr.visitas_rem}</span> atendimentos remotas (de {vr.visitas_prev} planejadas)</li>')
-        html_parts.append("</ul></div>")
-
-    # Aviso fixo
-    html_parts.append("""
-        <div class="footer">
-            <span class="icon">⚠️</span> Reforçamos que visitas remotas não são consideradas no cálculo da aderência à rota.
-        </div>
-    </div>
-    """)
+    html_parts.append("</div>")
 
     html_content = f"""
     <!DOCTYPE html>
@@ -283,7 +216,8 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
         for i in range(0, len(text), max_chars_per_line):
             lines.append(_strip_emoji(text[i:i+max_chars_per_line]))
 
-        line_height = font.getsize("A")[1] + 4
+        # Pillow 10 removeu ``getsize``; ``getbbox`` é a API compatível.
+        line_height = (font.getbbox("A")[3] - font.getbbox("A")[1]) + 4
         height = max(600, line_height * len(lines) + 40)
 
         img = Image.new("RGB", (width, height), (248, 250, 252))

@@ -7,4 +7,3 @@ Pillow>=10.0.0
 html2image>=2.0.4
 pyinstaller>=6.3.0
 fpdf2>=2.7.0
-starlette<1.4.0

@@ -336,7 +336,8 @@ def gerar_imagem_analise(resultado: ResultadoAnalise) -> bytes:
         font = ImageFont.load_default()
         max_chars_per_line = 90
         lines = [ _strip_emoji(text[i:i+max_chars_per_line]) for i in range(0, len(text), max_chars_per_line) ]
-        line_height = font.getsize("A")[1] + 4
+        # Pillow 10 removeu ``getsize``; ``getbbox`` é a API compatível.
+        line_height = (font.getbbox("A")[3] - font.getbbox("A")[1]) + 4
         height = max(600, line_height * len(lines) + 40)
 
         img = Image.new("RGB", (width, height), (15, 23, 42))

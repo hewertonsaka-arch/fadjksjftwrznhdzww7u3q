@@ -75,7 +75,7 @@ def _exibir_tabela(df) -> None:
         header_style="bold magenta",
     )
     table.add_column("Vendedor", style="cyan", no_wrap=True)
-    table.add_column("Gestor", style="dim")
+    table.add_column("Coordenador", style="dim")
     table.add_column("Aderência", justify="right")
     table.add_column("Check-in", justify="right")
     table.add_column("Check-out", justify="right")
@@ -99,7 +99,7 @@ def _exibir_tabela(df) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Seleção de gestor (sempre solicitada)
+# Seleção de coordenador (sempre solicitada)
 # ---------------------------------------------------------------------------
 
 def _pedir_gestor(gestores: list[str]) -> str | None:
@@ -107,16 +107,16 @@ def _pedir_gestor(gestores: list[str]) -> str | None:
         return None
 
     if len(gestores) == 1:
-        console.print(f"[dim]Gestor detectado:[/dim] [cyan]{gestores[0]}[/cyan]\n")
+        console.print(f"[dim]Coordenador detectado:[/dim] [cyan]{gestores[0]}[/cyan]\n")
         return gestores[0]
 
-    console.print("[bold]Gestores encontrados na base:[/bold]")
+    console.print("[bold]Coordenadores encontrados na base:[/bold]")
     for i, g in enumerate(gestores, 1):
         console.print(f"  [cyan]{i}.[/cyan] {g}")
     console.print(f"  [cyan]{len(gestores)+1}.[/cyan] [dim]Todos (sem filtro)[/dim]")
 
     while True:
-        escolha = Prompt.ask("\nSelecione o gestor [bold](número)[/bold]").strip()
+        escolha = Prompt.ask("\nSelecione o coordenador [bold](número)[/bold]").strip()
         if escolha.isdigit():
             idx = int(escolha) - 1
             if 0 <= idx < len(gestores):
@@ -146,7 +146,7 @@ def main() -> None:
     # 2. Pré-visualização da tabela
     _exibir_tabela(df)
 
-    # 3. Seleção de gestor
+    # 3. Seleção de coordenador
     gestores_disponiveis = sorted(df["gestor"].dropna().unique().tolist())
     gestor_filtro = _pedir_gestor(gestores_disponiveis)
     console.print()
