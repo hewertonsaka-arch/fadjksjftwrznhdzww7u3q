@@ -320,13 +320,13 @@ def main():
         # ----------------------------------------------------------------
         # 3. ABAS
         # ----------------------------------------------------------------
-        tab1, tab2 = st.tabs(["📤 Resumo", "🔍 Análise"])
+        tab1, tab2, tab3 = st.tabs(["📤 Resumo dia anterior", "📤 Resumo dia atual", "🔍 Análise"])
 
         # ================================================================
-        # ABA 1 — Resumo para Compartilhamento (comportamento original)
+        # ABA 1 — Resumo dia anterior
         # ================================================================
         with tab1:
-            if st.button("Gerar Resumo", type="primary", key="btn_resumo"):
+            if st.button("Gerar Resumo", type="primary", key="btn_resumo_anterior"):
                 if not periodo:
                     st.warning("Por favor, preencha o período do relatório.")
                 else:
@@ -349,6 +349,7 @@ def main():
                                     data=resumo,
                                     file_name="resumo_visitas.txt",
                                     mime="text/plain",
+                                    key="dl_txt_anterior",
                                 )
 
                             with col_btn2:
@@ -364,15 +365,65 @@ def main():
                                         data=img_bytes,
                                         file_name="resumo_visitas.png",
                                         mime="image/png",
+                                        key="dl_img_anterior",
                                     )
 
                         except ValueError as e:
                             st.error(f"Erro na análise: {e}")
 
         # ================================================================
-        # ABA 2 — Análise Criteriosa
+        # ABA 2 — Resumo dia atual
         # ================================================================
         with tab2:
+            if st.button("Gerar Resumo", type="primary", key="btn_resumo_atual"):
+                if not periodo:
+                    st.warning("Por favor, preencha o período do relatório.")
+                else:
+                    with st.spinner("Analisando dados..."):
+                        try:
+                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                            resumo = formatter.gerar_resumo_atual(resultado)
+
+                            st.subheader("✅ Resumo Gerado")
+                            st.code(resumo, language="markdown")
+
+                            st.markdown("---")
+                            st.markdown("### Exportar Resumo")
+
+                            col_btn1, col_btn2 = st.columns(2)
+
+                            with col_btn1:
+                                st.download_button(
+                                    label="📄 Baixar como .txt",
+                                    data=resumo,
+                                    file_name="resumo_visitas_atual.txt",
+                                    mime="text/plain",
+                                    key="dl_txt_atual",
+                                )
+
+                            with col_btn2:
+                                with st.spinner("Gerando Imagem Premium..."):
+                                    try:
+                                        img_bytes = image_generator.gerar_imagem_html(resultado)
+                                    except Exception:
+                                        st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
+                                        img_bytes = None
+                                if img_bytes:
+                                    st.download_button(
+                                        label="🖼️ Baixar como Imagem (.png)",
+                                        data=img_bytes,
+                                        file_name="resumo_visitas_atual.png",
+                                        mime="image/png",
+                                        key="dl_img_atual",
+                                    )
+
+                        except ValueError as e:
+                            st.error(f"Erro na análise: {e}")
+
+        # ================================================================
+        # ABA 3 — Análise Criteriosa
+        # ================================================================
+        with tab3:
             if st.button("🔍 Gerar Análise Criteriosa", type="primary", key="btn_analise"):
                 if not periodo:
                     st.warning("Por favor, preencha o período do relatório.")

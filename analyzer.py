@@ -58,11 +58,14 @@ class ResultadoAnalise:
     media_checkin_min: float = 0.0          # em minutos totais
     acima_checkin: list[VendedorMetrica] = field(default_factory=list)
     abaixo_checkin: list[VendedorMetrica] = field(default_factory=list)    # NOVO: pontuais
+    # Limiares fixos para aba "dia atual"
+    checkin_acima_fixo: list[VendedorMetrica] = field(default_factory=list)   # check-in > 09:00
 
     # Check-out
     media_checkout_min: float = 0.0         # em minutos totais
     abaixo_checkout: list[VendedorMetrica] = field(default_factory=list)
     acima_checkout: list[VendedorMetrica] = field(default_factory=list)    # NOVO: ficam mais tarde
+    checkout_abaixo_fixo: list[VendedorMetrica] = field(default_factory=list) # check-out < 17:00
 
     # Tempo no cliente
     media_tempo_min: float = 0.0            # em minutos
@@ -276,6 +279,28 @@ def analisar(df: pd.DataFrame, periodo: str, gestor: Optional[str] = None) -> Re
     resultado.visitas_canceladas = (
         df[df["aderencia"].isna()]["vendedor"].tolist()
     )
+
+    # -----------------------------------------------------------------------
+    # 12c. Check-in fixo acima das 09:00 (540 min) — aba "dia atual"
+    # -----------------------------------------------------------------------
+    CHECKIN_FIXO_MIN = 9 * 60   # 09:00 = 540 min
+    if not df_ci.empty:
+        ci_fixo = df_ci[df_ci["checkin_min"] > CHECKIN_FIXO_MIN].sort_values("checkin_min", ascending=False)
+        resultado.checkin_acima_fixo = [
+            VendedorMetrica(nome=row["vendedor"], valor=minutes_to_time_str(row["checkin_min"]))
+            for _, row in ci_fixo.iterrows()
+        ]
+
+    # -----------------------------------------------------------------------
+    # 12d. Check-out fixo abaixo das 17:00 (1020 min) — aba "dia atual"
+    # -----------------------------------------------------------------------
+    CHECKOUT_FIXO_MIN = 17 * 60  # 17:00 = 1020 min
+    if not df_co.empty:
+        co_fixo = df_co[df_co["checkout_min"] < CHECKOUT_FIXO_MIN].sort_values("checkout_min")
+        resultado.checkout_abaixo_fixo = [
+            VendedorMetrica(nome=row["vendedor"], valor=minutes_to_time_str(row["checkout_min"]))
+            for _, row in co_fixo.iterrows()
+        ]
 
     # -----------------------------------------------------------------------
     # 13. Total de vendedores

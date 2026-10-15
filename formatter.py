@@ -71,3 +71,57 @@ def gerar_resumo(resultado: ResultadoAnalise) -> str:
             linhas.append(f"* {nome}")
 
     return "\n".join(linhas)
+
+
+def gerar_resumo_atual(resultado: ResultadoAnalise) -> str:
+    """
+    Gera o resumo para a aba 'Resumo dia atual', com métricas de limiares fixos:
+    - Check-in fixo: acima das 09h00
+    - Check-out fixo: abaixo das 17h00
+    - Nomenclaturas ajustadas para o contexto do dia em andamento
+    """
+    linhas: list[str] = []
+
+    # --- Cabeçalho ---
+    nome_gestor = resultado.gestor_selecionado if resultado.gestor_selecionado else "Geral"
+    linhas.append(f"Resumo de Visitas {nome_gestor}")
+    linhas.append(f"Período apurado: {resultado.periodo}")
+    linhas.append("")
+    linhas.append("")
+
+    # --- 1. Check-in acima das 09:00 (fixo) ---
+    if resultado.checkin_acima_fixo:
+        linhas.append("📤 Check-in acima das 09h00:")
+        for vm in resultado.checkin_acima_fixo:
+            linhas.append(f"* {vm.nome} – {vm.valor}")
+        linhas.append("")
+
+    # --- 2. Check-out abaixo das 17:00 (fixo) ---
+    if resultado.checkout_abaixo_fixo:
+        linhas.append("📥 Check-out abaixo das 17h00:")
+        for vm in resultado.checkout_abaixo_fixo:
+            linhas.append(f"* {vm.nome} – {vm.valor}")
+        linhas.append("")
+        linhas.append("")
+
+    # --- 3. Visitas não realizadas Ate o Momento ---
+    if resultado.nao_realizadas:
+        linhas.append("❌ Visitas não realizadas Ate o Momento:")
+        for vm in resultado.nao_realizadas:
+            linhas.append(f"* {vm.nome}  – {vm.valor}")
+        linhas.append("")
+
+    # --- 4. Sem Visitas Ate o Momento (aderência 0%) ---
+    if resultado.nao_realizou_visitas:
+        linhas.append("🚫 Sem Visitas Ate o Momento:")
+        for nome in resultado.nao_realizou_visitas:
+            linhas.append(f"* {nome}")
+        linhas.append("")
+
+    # --- 5. Visitas Inativadas (aderência NaN) ---
+    if resultado.visitas_canceladas:
+        linhas.append("🗑️ Visitas Inativadas:")
+        for nome in resultado.visitas_canceladas:
+            linhas.append(f"* {nome}")
+
+    return "\n".join(linhas)
