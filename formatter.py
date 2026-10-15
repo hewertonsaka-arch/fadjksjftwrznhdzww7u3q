@@ -55,5 +55,19 @@ def gerar_resumo(resultado: ResultadoAnalise) -> str:
         linhas.append("❌ Visitas não realizadas:")
         for vm in resultado.nao_realizadas:
             linhas.append(f"* {vm.nome}  – {vm.valor}")
+        linhas.append("")
+
+    # --- 4. Não Realizou Visitas (aderência 0%) ---
+    if resultado.nao_realizou_visitas:
+        linhas.append("🚫 Não Realizou Visitas:")
+        for nome in resultado.nao_realizou_visitas:
+            linhas.append(f"* {nome}")
+        linhas.append("")
+
+    # --- 5. Visitas Canceladas (aderência NaN) ---
+    if resultado.visitas_canceladas:
+        linhas.append("🗑️ Visitas Inativadas:")
+        for nome in resultado.visitas_canceladas:
+            linhas.append(f"* {nome}")
 
     return "\n".join(linhas)

@@ -74,6 +74,12 @@ class ResultadoAnalise:
     nao_realizadas: list[VendedorMetrica] = field(default_factory=list)
     sem_faltas: list[str] = field(default_factory=list)                    # NOVO: zero faltas
 
+    # Aderência 0% → Não Realizou Visitas
+    nao_realizou_visitas: list[str] = field(default_factory=list)
+
+    # Aderência NaN → Visitas Canceladas
+    visitas_canceladas: list[str] = field(default_factory=list)
+
     # Vendedores com visitas SOMENTE remotas (ponto de atenção)
     somente_remota: list[str] = field(default_factory=list)
 
@@ -256,6 +262,20 @@ def analisar(df: pd.DataFrame, periodo: str, gestor: Optional[str] = None) -> Re
     # 12. Sem faltas (visitas_nao == 0)
     # -----------------------------------------------------------------------
     resultado.sem_faltas = df[df["visitas_nao"] == 0]["vendedor"].tolist()
+
+    # -----------------------------------------------------------------------
+    # 12a. Não Realizou Visitas (aderência == 0%)
+    # -----------------------------------------------------------------------
+    resultado.nao_realizou_visitas = (
+        df[df["aderencia"] == 0.0]["vendedor"].tolist()
+    )
+
+    # -----------------------------------------------------------------------
+    # 12b. Visitas Canceladas (aderência ausente / NaN)
+    # -----------------------------------------------------------------------
+    resultado.visitas_canceladas = (
+        df[df["aderencia"].isna()]["vendedor"].tolist()
+    )
 
     # -----------------------------------------------------------------------
     # 13. Total de vendedores
