@@ -10,10 +10,13 @@ def _fmt_aderencia(v: float) -> str:
 def _fmt_tempo(v: int | float) -> str:
     return f"{int(v)}min"
 
-def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
+def gerar_imagem_html(resultado: ResultadoAnalise, tipo: str = "anterior") -> bytes:
     """
     Gera uma imagem rica (PNG) baseada em HTML/CSS usando html2image.
-    Retorna os bytes da imagem.
+    Suporta os modos:
+      - "anterior": Resumo dia anterior (com check-in e check-out pela média)
+      - "atual": Resumo dia atual (com check-in fixo, sem check-out e nomenclaturas do dia)
+    Retorna os bytes da imagem gerada.
     """
     
     # CSS Moderno (Estilo Card Claro)
@@ -94,22 +97,12 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
     .text-blue { color: #3b82f6; }
     .text-orange { color: #f59e0b; }
     .text-purple { color: #8b5cf6; }
-    .text-teal { color: #0d9488; }
-    
-    .footer {
-        margin-top: 25px;
-        padding-top: 15px;
-        border-top: 1px dashed #cbd5e1;
-        font-size: 13px;
-        color: #64748b;
-        text-align: center;
-    }
+    .text-slate { color: #64748b; }
     """
 
-    # Montando as seções do HTML dinamicamente
-    html_parts = []
-    
     nome_gestor = resultado.gestor_selecionado if resultado.gestor_selecionado else "Geral"
+    
+    html_parts = []
     html_parts.append(f"""
     <div class="card">
         <div class="header">
@@ -118,46 +111,143 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
         </div>
     """)
 
-    # 1. Check-in acima da média
-    if resultado.acima_checkin:
-        media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
-        html_parts.append(f"""
-        <div class="section">
-            <div class="section-title text-blue">
-                <span class="icon">📤</span> Check-in acima da média do time [{media_ci_str}]:
-            </div>
-            <ul>
-        """)
-        for vm in resultado.acima_checkin:
-            html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
-        html_parts.append("</ul></div>")
+    if tipo == "atual":
+        # --- Resumo Dia Atual ---
+        # 1. Check-in fixo
+        if resultado.checkin_acima_fixo:
+            hora_fixa_ci = minutes_to_time_str(resultado.limiar_checkin_fixo_min).replace(":", "h")
+            html_parts.append(f"""
+            <div class="section">
+                <div class="section-title text-blue">
+                    <span class="icon">📤</span> Check-in acima das {hora_fixa_ci}:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.checkin_acima_fixo:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
 
-    # 2. Check-out abaixo da média
-    if resultado.abaixo_checkout:
-        media_co_str = minutes_to_time_str(resultado.media_checkout_min)
-        html_parts.append(f"""
-        <div class="section">
-            <div class="section-title text-orange">
-                <span class="icon">📥</span> Check-out abaixo da média do time [{media_co_str}]:
-            </div>
-            <ul>
-        """)
-        for vm in resultado.abaixo_checkout:
-            html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
-        html_parts.append("</ul></div>")
+        # 2. Check-out fixo
+        if resultado.checkout_abaixo_fixo:
+            hora_fixa_co = minutes_to_time_str(resultado.limiar_checkout_fixo_min).replace(":", "h")
+            html_parts.append(f"""
+            <div class="section">
+                <div class="section-title text-orange">
+                    <span class="icon">📥</span> Check-out abaixo das {hora_fixa_co}:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.checkout_abaixo_fixo:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
 
-    # 3. Visitas não realizadas
-    if resultado.nao_realizadas:
-        html_parts.append("""
-        <div class="section">
-            <div class="section-title text-red">
-                <span class="icon">❌</span> Visitas não realizadas:
-            </div>
-            <ul>
-        """)
-        for vm in resultado.nao_realizadas:
-            html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
-        html_parts.append("</ul></div>")
+        # 3. Visitas não realizadas Até o Momento
+        if resultado.nao_realizadas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-red">
+                    <span class="icon">❌</span> Visitas não realizadas Ate o Momento:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.nao_realizadas:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 3. Sem Visitas Ate o Momento (aderência 0%)
+        if resultado.nao_realizou_visitas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-purple">
+                    <span class="icon">🚫</span> Sem Visitas Ate o Momento:
+                </div>
+                <ul>
+            """)
+            for nome in resultado.nao_realizou_visitas:
+                html_parts.append(f'<li><span class="name">{nome}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 4. Visitas Inativadas (aderência NaN)
+        if resultado.visitas_canceladas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-slate">
+                    <span class="icon">🗑️</span> Visitas Inativadas:
+                </div>
+                <ul>
+            """)
+            for nome in resultado.visitas_canceladas:
+                html_parts.append(f'<li><span class="name">{nome}</span></li>')
+            html_parts.append("</ul></div>")
+
+    else:
+        # --- Resumo Dia Anterior ---
+        # 1. Check-in acima da média
+        if resultado.acima_checkin:
+            media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
+            html_parts.append(f"""
+            <div class="section">
+                <div class="section-title text-blue">
+                    <span class="icon">📤</span> Check-in acima da média do time [{media_ci_str}]:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.acima_checkin:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 2. Check-out abaixo da média
+        if resultado.abaixo_checkout:
+            media_co_str = minutes_to_time_str(resultado.media_checkout_min)
+            html_parts.append(f"""
+            <div class="section">
+                <div class="section-title text-orange">
+                    <span class="icon">📥</span> Check-out abaixo da média do time [{media_co_str}]:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.abaixo_checkout:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 3. Visitas não realizadas
+        if resultado.nao_realizadas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-red">
+                    <span class="icon">❌</span> Visitas não realizadas:
+                </div>
+                <ul>
+            """)
+            for vm in resultado.nao_realizadas:
+                html_parts.append(f'<li><span class="name">{vm.nome}</span> – <span class="value">{vm.valor}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 4. Não Realizou Visitas (aderência 0%)
+        if resultado.nao_realizou_visitas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-purple">
+                    <span class="icon">🚫</span> Não Realizou Visitas:
+                </div>
+                <ul>
+            """)
+            for nome in resultado.nao_realizou_visitas:
+                html_parts.append(f'<li><span class="name">{nome}</span></li>')
+            html_parts.append("</ul></div>")
+
+        # 5. Visitas Inativadas (aderência NaN)
+        if resultado.visitas_canceladas:
+            html_parts.append("""
+            <div class="section">
+                <div class="section-title text-slate">
+                    <span class="icon">🗑️</span> Visitas Inativadas:
+                </div>
+                <ul>
+            """)
+            for nome in resultado.visitas_canceladas:
+                html_parts.append(f'<li><span class="name">{nome}</span></li>')
+            html_parts.append("</ul></div>")
 
     html_parts.append("</div>")
 
@@ -174,86 +264,77 @@ def gerar_imagem_html(resultado: ResultadoAnalise) -> bytes:
     </html>
     """
 
-    # Renderiza com html2image. Se estiver rodando em ambiente sem Chrome (ex: Streamlit Cloud),
-    # o html2image/pyppeteer pode falhar; neste caso caímos em um fallback simples usando Pillow
-    # para gerar uma imagem textual (garante que a app não quebre).
+    # Tentativa de renderizar com html2image; fallback gracioso via Pillow
     try:
-        # Instanciação de Html2Image pode lançar se não houver um executável do Chrome/Chromium
         from html2image import Html2Image
         with tempfile.TemporaryDirectory() as tmpdirname:
             hti = Html2Image(size=(800, 1000))
             hti.output_path = tmpdirname
             filename = "relatorio.png"
-            # Gera o PNG a partir da string HTML
             hti.screenshot(html_str=html_content, save_as=filename)
-            # Lê os bytes gerados
             filepath = os.path.join(tmpdirname, filename)
             with open(filepath, "rb") as f:
                 return f.read()
 
-    except Exception as e:
+    except Exception:
         secoes: list[tuple[str, list[str]]] = []
-        if resultado.acima_checkin:
-            media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
-            secoes.append((
-                f"Check-in acima da média do time [{media_ci_str}]",
-                [f"{vm.nome} — {vm.valor}" for vm in resultado.acima_checkin],
-            ))
-        if resultado.abaixo_checkout:
-            media_co_str = minutes_to_time_str(resultado.media_checkout_min)
-            secoes.append((
-                f"Check-out abaixo da média do time [{media_co_str}]",
-                [f"{vm.nome} — {vm.valor}" for vm in resultado.abaixo_checkout],
-            ))
-        if resultado.nao_realizadas:
-            secoes.append((
-                "Visitas não realizadas",
-                [f"{vm.nome} — {vm.valor}" for vm in resultado.nao_realizadas],
-            ))
+        if tipo == "atual":
+            if resultado.checkin_acima_fixo:
+                hora_fixa_ci = minutes_to_time_str(resultado.limiar_checkin_fixo_min).replace(":", "h")
+                secoes.append((
+                    f"Check-in acima das {hora_fixa_ci}",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.checkin_acima_fixo],
+                ))
+            if resultado.checkout_abaixo_fixo:
+                hora_fixa_co = minutes_to_time_str(resultado.limiar_checkout_fixo_min).replace(":", "h")
+                secoes.append((
+                    f"Check-out abaixo das {hora_fixa_co}",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.checkout_abaixo_fixo],
+                ))
+            if resultado.nao_realizadas:
+                secoes.append((
+                    "Visitas não realizadas Ate o Momento",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.nao_realizadas],
+                ))
+            if resultado.nao_realizou_visitas:
+                secoes.append((
+                    "Sem Visitas Ate o Momento",
+                    [f"{nome}" for nome in resultado.nao_realizou_visitas],
+                ))
+            if resultado.visitas_canceladas:
+                secoes.append((
+                    "Visitas Inativadas",
+                    [f"{nome}" for nome in resultado.visitas_canceladas],
+                ))
+        else:
+            if resultado.acima_checkin:
+                media_ci_str = minutes_to_time_str(resultado.media_checkin_min)
+                secoes.append((
+                    f"Check-in acima da média do time [{media_ci_str}]",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.acima_checkin],
+                ))
+            if resultado.abaixo_checkout:
+                media_co_str = minutes_to_time_str(resultado.media_checkout_min)
+                secoes.append((
+                    f"Check-out abaixo da média do time [{media_co_str}]",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.abaixo_checkout],
+                ))
+            if resultado.nao_realizadas:
+                secoes.append((
+                    "Visitas não realizadas",
+                    [f"{vm.nome} — {vm.valor}" for vm in resultado.nao_realizadas],
+                ))
+            if resultado.nao_realizou_visitas:
+                secoes.append((
+                    "Não Realizou Visitas",
+                    [f"{nome}" for nome in resultado.nao_realizou_visitas],
+                ))
+            if resultado.visitas_canceladas:
+                secoes.append((
+                    "Visitas Inativadas",
+                    [f"{nome}" for nome in resultado.visitas_canceladas],
+                ))
+
         return gerar_imagem_fallback(
             f"Resumo de Visitas {nome_gestor}", resultado.periodo, secoes
         )
-
-        # Fallback: gerar imagem simples com texto (remove tags HTML e emojis)
-        import re
-        from io import BytesIO
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-        except Exception:
-            # Se Pillow não estiver disponível por algum motivo, re-raise a exceção original
-            raise
-
-        def _strip_emoji(text: str) -> str:
-            return "".join(ch for ch in text if ord(ch) <= 0xFFFF)
-
-        # Remove tags HTML e compacta espaços
-        text = re.sub(r"<[^>]+>", "", html_content)
-        text = re.sub(r"\s+", " ", text).strip()
-
-        # Cria imagem básica
-        width = 800
-        font = ImageFont.load_default()
-        # calcula altura aproximada
-        lines = []
-        max_chars_per_line = 90
-        for i in range(0, len(text), max_chars_per_line):
-            lines.append(_strip_emoji(text[i:i+max_chars_per_line]))
-
-        # Pillow 10 removeu ``getsize``; ``getbbox`` é a API compatível.
-        line_height = (font.getbbox("A")[3] - font.getbbox("A")[1]) + 4
-        height = max(600, line_height * len(lines) + 40)
-
-        img = Image.new("RGB", (width, height), (248, 250, 252))
-        draw = ImageDraw.Draw(img)
-        x, y = 20, 20
-        fill = (30, 41, 59)
-        for line in lines:
-            if not line:
-                y += line_height
-                continue
-            draw.text((x, y), line, font=font, fill=fill)
-            y += line_height
-
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()

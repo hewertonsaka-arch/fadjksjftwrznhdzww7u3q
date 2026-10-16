@@ -142,12 +142,15 @@ def load(filepath: str | Path | object, sheet: int | str = 0) -> pd.DataFrame:
 
     # --- Limpeza de strings ---
     df["vendedor"] = df["vendedor"].apply(formatar_nome_vendedor)
-    df["gestor"] = df["gestor"].str.strip()
+    df["gestor"] = df["gestor"].astype(str).str.strip()
 
     # --- Converte numéricos inteiros ---
     for col in ("qtde_clientes", "visitas_prev", "visitas_real",
                 "visitas_pres", "visitas_rem", "visitas_nao"):
-        df[col] = pd.to_numeric(df[col].str.replace(",", "."), errors="coerce").fillna(0).astype(int)
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+        else:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", "."), errors="coerce").fillna(0).astype(int)
 
     # --- Converte % aderência ---
     df["aderencia"] = df["aderencia"].apply(_parse_percent)
@@ -159,9 +162,12 @@ def load(filepath: str | Path | object, sheet: int | str = 0) -> pd.DataFrame:
     df["checkout_min"] = df["checkout_time"].apply(_time_to_minutes)
 
     # --- Tempo no cliente (em minutos) ---
-    df["tempo_min"] = pd.to_numeric(
-        df["tempo_cliente"].str.replace(",", "."), errors="coerce"
-    )
+    if pd.api.types.is_numeric_dtype(df["tempo_cliente"]):
+        df["tempo_min"] = pd.to_numeric(df["tempo_cliente"], errors="coerce")
+    else:
+        df["tempo_min"] = pd.to_numeric(
+            df["tempo_cliente"].astype(str).str.replace(",", "."), errors="coerce"
+        )
 
     # Remove linhas sem vendedor
     df = df[df["vendedor"].notna() & (df["vendedor"] != "")].reset_index(drop=True)

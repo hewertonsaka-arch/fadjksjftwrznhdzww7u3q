@@ -77,7 +77,6 @@ def gerar_resumo_atual(resultado: ResultadoAnalise) -> str:
     """
     Gera o resumo para a aba 'Resumo dia atual', com métricas de limiares fixos:
     - Check-in fixo: acima das 09h00
-    - Check-out fixo: abaixo das 17h00
     - Nomenclaturas ajustadas para o contexto do dia em andamento
     """
     linhas: list[str] = []
@@ -89,16 +88,18 @@ def gerar_resumo_atual(resultado: ResultadoAnalise) -> str:
     linhas.append("")
     linhas.append("")
 
-    # --- 1. Check-in acima das 09:00 (fixo) ---
+    # --- 1. Check-in acima do horário fixo ---
     if resultado.checkin_acima_fixo:
-        linhas.append("📤 Check-in acima das 09h00:")
+        hora_fixa_ci = minutes_to_time_str(resultado.limiar_checkin_fixo_min).replace(":", "h")
+        linhas.append(f"📤 Check-in acima das {hora_fixa_ci}:")
         for vm in resultado.checkin_acima_fixo:
             linhas.append(f"* {vm.nome} – {vm.valor}")
         linhas.append("")
 
-    # --- 2. Check-out abaixo das 17:00 (fixo) ---
+    # --- 2. Check-out abaixo do horário fixo ---
     if resultado.checkout_abaixo_fixo:
-        linhas.append("📥 Check-out abaixo das 17h00:")
+        hora_fixa_co = minutes_to_time_str(resultado.limiar_checkout_fixo_min).replace(":", "h")
+        linhas.append(f"📥 Check-out abaixo das {hora_fixa_co}:")
         for vm in resultado.checkout_abaixo_fixo:
             linhas.append(f"* {vm.nome} – {vm.valor}")
         linhas.append("")

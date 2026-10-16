@@ -28,6 +28,13 @@ COLUNAS = {
 # Se None, usa a média da equipe como limiar.
 TEMPO_MINIMO_CLIENTE_MIN: int | None = None
 
+# Limiares fixos para a aba "Resumo dia atual"
+CHECKIN_HORA_FIXA: str = "09h00"
+CHECKIN_FIXO_MIN: int = 9 * 60  # 540 minutos (09:00)
+
+CHECKOUT_HORA_FIXA: str = "17h00"
+CHECKOUT_FIXO_MIN: int = 17 * 60  # 1020 minutos (17:00)
+
 # Se True, gera relatório separado por gestor quando há mais de um na base.
 FILTRAR_POR_GESTOR: bool = True
 

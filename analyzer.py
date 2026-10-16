@@ -8,7 +8,7 @@ from typing import Optional
 
 import pandas as pd
 
-from config import TEMPO_MINIMO_CLIENTE_MIN
+from config import TEMPO_MINIMO_CLIENTE_MIN, CHECKIN_FIXO_MIN, CHECKOUT_FIXO_MIN
 from loader import minutes_to_time_str
 
 
@@ -59,13 +59,15 @@ class ResultadoAnalise:
     acima_checkin: list[VendedorMetrica] = field(default_factory=list)
     abaixo_checkin: list[VendedorMetrica] = field(default_factory=list)    # NOVO: pontuais
     # Limiares fixos para aba "dia atual"
-    checkin_acima_fixo: list[VendedorMetrica] = field(default_factory=list)   # check-in > 09:00
+    limiar_checkin_fixo_min: int = 540
+    checkin_acima_fixo: list[VendedorMetrica] = field(default_factory=list)   # check-in > corte
 
     # Check-out
     media_checkout_min: float = 0.0         # em minutos totais
     abaixo_checkout: list[VendedorMetrica] = field(default_factory=list)
     acima_checkout: list[VendedorMetrica] = field(default_factory=list)    # NOVO: ficam mais tarde
-    checkout_abaixo_fixo: list[VendedorMetrica] = field(default_factory=list) # check-out < 17:00
+    limiar_checkout_fixo_min: int = 1020
+    checkout_abaixo_fixo: list[VendedorMetrica] = field(default_factory=list) # check-out < corte
 
     # Tempo no cliente
     media_tempo_min: float = 0.0            # em minutos
@@ -104,7 +106,13 @@ class ResultadoAnalise:
 # Função principal
 # ---------------------------------------------------------------------------
 
-def analisar(df: pd.DataFrame, periodo: str, gestor: Optional[str] = None) -> ResultadoAnalise:
+def analisar(
+    df: pd.DataFrame,
+    periodo: str,
+    gestor: Optional[str] = None,
+    limiar_checkin_fixo_min: Optional[int] = None,
+    limiar_checkout_fixo_min: Optional[int] = None,
+) -> ResultadoAnalise:
     """
     Realiza toda a análise sobre o DataFrame carregado.
 
@@ -281,22 +289,24 @@ def analisar(df: pd.DataFrame, periodo: str, gestor: Optional[str] = None) -> Re
     )
 
     # -----------------------------------------------------------------------
-    # 12c. Check-in fixo acima das 09:00 (540 min) — aba "dia atual"
+    # 12c. Check-in fixo acima do horário de corte — aba "dia atual"
     # -----------------------------------------------------------------------
-    CHECKIN_FIXO_MIN = 9 * 60   # 09:00 = 540 min
+    corte_ci = limiar_checkin_fixo_min if limiar_checkin_fixo_min is not None else CHECKIN_FIXO_MIN
+    resultado.limiar_checkin_fixo_min = corte_ci
     if not df_ci.empty:
-        ci_fixo = df_ci[df_ci["checkin_min"] > CHECKIN_FIXO_MIN].sort_values("checkin_min", ascending=False)
+        ci_fixo = df_ci[df_ci["checkin_min"] > corte_ci].sort_values("checkin_min", ascending=False)
         resultado.checkin_acima_fixo = [
             VendedorMetrica(nome=row["vendedor"], valor=minutes_to_time_str(row["checkin_min"]))
             for _, row in ci_fixo.iterrows()
         ]
 
     # -----------------------------------------------------------------------
-    # 12d. Check-out fixo abaixo das 17:00 (1020 min) — aba "dia atual"
+    # 12d. Check-out fixo abaixo do horário de corte
     # -----------------------------------------------------------------------
-    CHECKOUT_FIXO_MIN = 17 * 60  # 17:00 = 1020 min
+    corte_co = limiar_checkout_fixo_min if limiar_checkout_fixo_min is not None else CHECKOUT_FIXO_MIN
+    resultado.limiar_checkout_fixo_min = corte_co
     if not df_co.empty:
-        co_fixo = df_co[df_co["checkout_min"] < CHECKOUT_FIXO_MIN].sort_values("checkout_min")
+        co_fixo = df_co[df_co["checkout_min"] < corte_co].sort_values("checkout_min")
         resultado.checkout_abaixo_fixo = [
             VendedorMetrica(nome=row["vendedor"], valor=minutes_to_time_str(row["checkout_min"]))
             for _, row in co_fixo.iterrows()

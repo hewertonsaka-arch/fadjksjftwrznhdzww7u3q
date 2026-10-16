@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
+import html
+from datetime import time
 from io import BytesIO
 
 import loader
@@ -13,6 +15,78 @@ from config import FORMATO_PERIODO_EXEMPLO
 
 # Configuração da página
 st.set_page_config(page_title="Rote Assist", page_icon="📊", layout="centered")
+
+
+def _render_copy_button(text: str, label: str = "📋 Copiar Resumo", key: str = "copy_btn"):
+    """Renderiza um botão com JavaScript nativo para cópia imediata no navegador (desktop/mobile)."""
+    escaped_text = html.escape(text).replace("\n", "\\n").replace('"', '\\"').replace("'", "\\'")
+    js_code = f"""
+    <div style="margin: 8px 0;">
+        <button id="{key}" onclick="copiarTexto_{key}()" style="
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+            transition: all 0.2s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        ">
+            <span>{label}</span>
+        </button>
+        <span id="msg_{key}" style="
+            color: #059669;
+            font-weight: 600;
+            font-size: 13px;
+            margin-left: 10px;
+            display: none;
+            font-family: sans-serif;
+        ">✔ Copiado com sucesso!</span>
+    </div>
+    <script>
+        function copiarTexto_{key}() {{
+            const texto = "{escaped_text}";
+            if (navigator.clipboard && window.isSecureContext) {{
+                navigator.clipboard.writeText(texto).then(() => mostrarFeedback_{key}()).catch(() => fallbackCopy_{key}(texto));
+            }} else {{
+                fallbackCopy_{key}(texto);
+            }}
+        }}
+        function fallbackCopy_{key}(texto) {{
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {{
+                document.execCommand('copy');
+                mostrarFeedback_{key}();
+            }} catch (e) {{
+                alert('Pressione Ctrl+C para copiar.');
+            }}
+            document.body.removeChild(ta);
+        }}
+        function mostrarFeedback_{key}() {{
+            const btn = document.getElementById('{key}');
+            const msg = document.getElementById('msg_{key}');
+            btn.style.background = '#059669';
+            msg.style.display = 'inline';
+            setTimeout(() => {{
+                btn.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+                msg.style.display = 'none';
+            }}, 2500);
+        }}
+    </script>
+    """
+    st.components.v1.html(js_code, height=52)
 
 # ---------------------------------------------------------------------------
 # CSS global — tipografia e estilo dos cards da aba Análise
@@ -211,6 +285,22 @@ def _render_pontos_negativos(resultado) -> None:
             unsafe_allow_html=True,
         )
 
+    if resultado.nao_realizou_visitas:
+        algum = True
+        items = [f"<b>{nome}</b>" for nome in resultado.nao_realizou_visitas]
+        st.markdown(
+            _card("Não realizou visitas (Aderência 0%)", items, "vermelho", "🚫"),
+            unsafe_allow_html=True,
+        )
+
+    if resultado.visitas_canceladas:
+        algum = True
+        items = [f"<b>{nome}</b>" for nome in resultado.visitas_canceladas]
+        st.markdown(
+            _card("Visitas inativadas (Aderência ausente / cancelada)", items, "amarelo", "🗑️"),
+            unsafe_allow_html=True,
+        )
+
     if not algum:
         st.success("Nenhum ponto negativo identificado neste período. 🎉")
 
@@ -254,11 +344,68 @@ def _render_ranking(resultado) -> None:
         st.bar_chart(df_comp, color=["#22c55e", "#3b82f6", "#ef4444"], use_container_width=True)
 
 
+def _render_busca_vendedor(df_filtrado: pd.DataFrame, resultado) -> None:
+    """Permite ao gestor buscar e consultar o scorecard detalhado de um vendedor específico."""
+    if df_filtrado.empty:
+        return
+
+    st.markdown("---")
+    st.markdown('<p class="section-header">🔎 Consulta Individual por Vendedor</p>', unsafe_allow_html=True)
+    vendedores = sorted(df_filtrado["vendedor"].dropna().unique().tolist())
+    vendedor_sel = st.selectbox(
+        "Selecione um vendedor para detalhamento:",
+        options=["(Selecione um vendedor)"] + vendedores,
+        key="busca_vendedor_select",
+    )
+    if vendedor_sel and vendedor_sel != "(Selecione um vendedor)":
+        sub_df = df_filtrado[df_filtrado["vendedor"] == vendedor_sel]
+        if not sub_df.empty:
+            row = sub_df.iloc[0]
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                aderencia_str = f"{int(row['aderencia'])}%" if pd.notna(row['aderencia']) else "N/A (Cancelada)"
+                st.metric("Aderência à Rota", aderencia_str)
+            with col2:
+                st.metric("Média Check-in", str(row["checkin"]) if pd.notna(row["checkin"]) else "—")
+            with col3:
+                st.metric("Média Check-out", str(row["checkout"]) if pd.notna(row["checkout"]) else "—")
+            with col4:
+                st.metric("Faltas", int(row["visitas_nao"]))
+
+            col5, col6, col7, col8 = st.columns(4)
+            with col5:
+                st.metric("Visitas Previstas", int(row["visitas_prev"]))
+            with col6:
+                st.metric("Visitas Realizadas", int(row["visitas_real"]))
+            with col7:
+                st.metric("Presenciais", int(row["visitas_pres"]))
+            with col8:
+                st.metric("Remotas", int(row["visitas_rem"]))
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
+    with st.sidebar:
+        st.header("⚙️ Ajustes & Parâmetros")
+        hora_corte_ci = st.time_input(
+            "⏰ Limite Check-in:",
+            value=time(9, 0),
+            help="Check-ins realizados após este horário serão apontados nos resumos."
+        )
+        limiar_ci_min = hora_corte_ci.hour * 60 + hora_corte_ci.minute
+        st.caption(f"Corte Check-in: **{hora_corte_ci.strftime('%Hh%M')}**")
+
+        hora_corte_co = st.time_input(
+            "⏰ Limite Check-out:",
+            value=time(17, 0),
+            help="Check-outs realizados antes deste horário serão apontados nos resumos."
+        )
+        limiar_co_min = hora_corte_co.hour * 60 + hora_corte_co.minute
+        st.caption(f"Corte Check-out: **{hora_corte_co.strftime('%Hh%M')}**")
+
     col_title, col_btn = st.columns([0.85, 0.15])
 
     with col_title:
@@ -332,10 +479,17 @@ def main():
                 else:
                     with st.spinner("Analisando dados..."):
                         try:
-                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                            resultado = analyzer.analisar(
+                                df,
+                                periodo,
+                                gestor=gestor_filtro,
+                                limiar_checkin_fixo_min=limiar_ci_min,
+                                limiar_checkout_fixo_min=limiar_co_min,
+                            )
                             resumo = formatter.gerar_resumo(resultado)
 
                             st.subheader("✅ Resumo Gerado")
+                            _render_copy_button(resumo, label="📋 Copiar Resumo (Dia Anterior)", key="copy_btn_anterior")
                             st.code(resumo, language="markdown")
 
                             st.markdown("---")
@@ -355,7 +509,7 @@ def main():
                             with col_btn2:
                                 with st.spinner("Gerando Imagem Premium..."):
                                     try:
-                                        img_bytes = image_generator.gerar_imagem_html(resultado)
+                                        img_bytes = image_generator.gerar_imagem_html(resultado, tipo="anterior")
                                     except Exception:
                                         st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
                                         img_bytes = None
@@ -381,10 +535,17 @@ def main():
                 else:
                     with st.spinner("Analisando dados..."):
                         try:
-                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                            resultado = analyzer.analisar(
+                                df,
+                                periodo,
+                                gestor=gestor_filtro,
+                                limiar_checkin_fixo_min=limiar_ci_min,
+                                limiar_checkout_fixo_min=limiar_co_min,
+                            )
                             resumo = formatter.gerar_resumo_atual(resultado)
 
                             st.subheader("✅ Resumo Gerado")
+                            _render_copy_button(resumo, label="📋 Copiar Resumo (Dia Atual)", key="copy_btn_atual")
                             st.code(resumo, language="markdown")
 
                             st.markdown("---")
@@ -404,7 +565,7 @@ def main():
                             with col_btn2:
                                 with st.spinner("Gerando Imagem Premium..."):
                                     try:
-                                        img_bytes = image_generator.gerar_imagem_html(resultado)
+                                        img_bytes = image_generator.gerar_imagem_html(resultado, tipo="atual")
                                     except Exception:
                                         st.warning("Não foi possível gerar a imagem premium neste ambiente. Você pode baixar o resumo como .txt.")
                                         img_bytes = None
@@ -430,7 +591,13 @@ def main():
                 else:
                     with st.spinner("Realizando análise criteriosa..."):
                         try:
-                            resultado = analyzer.analisar(df, periodo, gestor=gestor_filtro)
+                            resultado = analyzer.analisar(
+                                df,
+                                periodo,
+                                gestor=gestor_filtro,
+                                limiar_checkin_fixo_min=limiar_ci_min,
+                                limiar_checkout_fixo_min=limiar_co_min,
+                            )
                         except ValueError as e:
                             st.error(f"Erro na análise: {e}")
                             st.stop()
@@ -451,6 +618,10 @@ def main():
                     # ---- Gráficos de Ranking ----
                     st.markdown("---")
                     _render_ranking(resultado)
+
+                    # ---- Consulta por Vendedor ----
+                    df_filtrado_gestor = df if gestor_filtro is None else df[df["gestor"].str.lower() == gestor_filtro.lower()]
+                    _render_busca_vendedor(df_filtrado_gestor, resultado)
 
                     # ---- Insights para Decisão ----
                     st.markdown("---")
@@ -615,6 +786,16 @@ def _gerar_pdf_analise(resultado, lista_insights: list[dict]) -> bytes:
     if resultado.somente_remota:
         item("Apenas visitas remotas (ponto critico):", cor=(146, 64, 14))
         for nome in resultado.somente_remota:
+            item(f"  - {nome}", cor=(146, 64, 14))
+
+    if resultado.nao_realizou_visitas:
+        item("Nao realizou visitas (Aderencia 0%):", cor=(153, 27, 27))
+        for nome in resultado.nao_realizou_visitas:
+            item(f"  - {nome}", cor=(153, 27, 27))
+
+    if resultado.visitas_canceladas:
+        item("Visitas inativadas (Aderencia ausente):", cor=(146, 64, 14))
+        for nome in resultado.visitas_canceladas:
             item(f"  - {nome}", cor=(146, 64, 14))
 
     pdf.ln(4)
